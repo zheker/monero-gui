@@ -1,0 +1,61 @@
+name: Build Monero GUI ARM64
+
+on:
+  workflow_dispatch:
+    inputs:
+      monero_tag:
+        description: Official Monero-GUI Tag to build (e.g., v0.18.5.0)
+        required: true
+        default: v0.18.5.0
+
+jobs:
+  build-arm64:
+    name: Patch and Build Upstream Tag
+    runs-on: ubuntu-24.04-arm
+    
+    steps:
+      - name: Checkout Local Repository (for the patch file)
+        uses: actions/checkout@v4
+        with:
+          path: local-repo
+
+      - name: Checkout Official Upstream Tag
+        uses: actions/checkout@v4
+        with:
+          repository: monero-project/monero-gui
+          ref: ${{ github.event.inputs.monero_tag }}
+          submodules: recursive
+          path: monero-gui
+
+      - name: Apply aarch64 Branch Patch
+        run: |
+          cd monero-gui
+          git apply ../local-repo/arm64-build-support.patch
+          echo "Patch successfully applied to ${{ github.event.inputs.monero_tag }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Build-Env Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./monero-gui
+          file: ./monero-gui/Dockerfile.linux
+          tags: monero:build-env-linux
+          build-args: |
+            THREADS=2
+          outputs: type=docker,dest=/tmp/art.tar
+
+      - name: Load Image into Local Docker Daemon
+        run: docker load -i /tmp/art.tar
+
+      - name: Execute Deterministic Compilation
+        run: |
+          docker run --rm -v ${{ github.workspace }}/monero-gui:/monero-gui w /monero-gui monero:build-env-linux sh -c "make release-static-arm64 -j2"
+
+      - name: Upload Patched Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monero-wallet-gui-${{ github.event.inputs.monero_tag }}-arm64
+          path: monero-gui/build/release/bin/monero-wallet-gui
+          if-no-files-found: error
