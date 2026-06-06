@@ -51,7 +51,7 @@ jobs:
 
       - name: Execute Deterministic Compilation
         run: |
-          docker run --rm -v ${{ github.workspace }}/monero-gui:/monero-gui w /monero-gui monero:build-env-linux sh -c "make release-static-arm64 -j2"
+          docker run --rm -v ${{ github.workspace }}/monero-gui:/monero-gui -w /monero-gui monero:build-env-linux sh -c "make release-static-arm64 -j2"
 
       - name: Upload Patched Binary Artifact
         uses: actions/upload-artifact@v4
